@@ -1,0 +1,355 @@
+---
+title: "STATS Final Markdown Report"
+author: "Darina Kamikazi and Chia Han Lee"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: yes
+    toc_depth: '4'
+  pdf_document:
+    toc: yes
+    toc_depth: 4
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 4
+---
+
+```{r knitr-options, include = FALSE}
+knitr::opts_chunk$set(fig.align="center",
+                      fig.height=6,
+                      fig.width=12,
+                      warning = FALSE,
+                      message = FALSE,
+                      comment = NA,
+                      echo=FALSE)
+#install.packages("ISLR")
+
+```
+
+
+```{r}
+library(tidyverse)# dplyr::tibble
+library(rpart) # for regression trees
+library(randomForest) # for random forests
+library(caret)
+library(dummy) # one-hot encoding 
+library(nnet) # simple neural network package
+library(modelr)
+library(knitr) #allows you to create Appendix with all_labels()
+library(tidyverse)
+library(ISLR) #Auto dataset
+library(evd)
+library(evir)
+library(fExtremes)
+theme_set(theme_bw()) #sets default ggplot output style
+```
+
+# 0.EXECUTIVE SUMMARY
+For our project, my groupmate Chia Han Lee and I explored  how the stock market deals with unpredictable (ie extreme) losses. Additionally, we sought to figure out how we can use that understanding to analyze Tesla stock performance over the past decade by creating a Tesla stock analysis model using Extreme Value Theory in R. 
+Although our Tesla-specific findings were inconclusive, we were still able to take an insightful look into the world of financial risk management.
+
+
+# 1.INTRODUCTION
+Our research project was motivated by our interest in the Electric Vehicle(EV) industry and the alarming trends we were noticing in the EV stock market. The COVID pandemic had unforeseen consequences on all industries. However, specifically for the EV industry, and even more specifically for Tesla, Inc, the COVID pandemic, coupled with recent controversies regarding Tesla,inc’s CEO Elon Musk, led to Tesla’s stock to plummet to unprecedented levels. In fact,last year alone, Tesla stock shares fell by 65%.
+
+Naturally, we wondered how such unforeseen events as global pandemics and controversies affect the finance industry,specifically at the stock market level , and if there are any preventative measures put in place to mitigate the effects of these inherently unpredictable events.
+
+Specifically, our guiding question was “how does the stock market deal with unpredictable catastrophes, and how can we use that understanding to analyse Tesla stock performance over the last decade?”
+We believe that understanding and having insurance measures put in place to protect the stock market and accelerate its recovery from unpredictable events is vital to the stabilization of any stock market. 
+
+
+# 2. DATA AND METHODOLOGY
+## a. Our Data
+We obtained our dataset from Yahoo Finance. It contains 2517 observations of Tesla,inc’s stock for the 10-year period of 05/30/2013 - 05/26/2023. The dataset contains information about the stock’s trading date, its trading volume,  as well as its respective opening, highest, lowest, closing and adjusted closing prices. 
+
+
+
+```{r load_data}
+stock = read.csv("TSLA.csv", header = TRUE)
+ac = stock$Adj.Close
+X = log(((ac[1:(length(ac)-1)]))/(ac[2:length(ac)]))
+size = length(X)
+
+```
+
+
+### Summary Statistics
+The summary statistics are shown below:
+```{r sum_stat}
+#View summary statistics
+summary(stock)
+```
+### Variables of interest 
+In total, our dataset contained 7 variables, but since we were interested in analyZing stock performance, our main variable of interest was the adjusted closing($Adj.Close$) variable. This price is the stock’s last price on closing day, and puts into consideration all other factors, such as supply and demand, that affect a stock’s prices throughout the trading season. As such, it is considered the most accurate measure of a stock’s performance on the trading market. 
+
+## b. Statistical Method
+Our statistical method of choice to analyse Tesla, inc’s stock performance was the Extreme Value Theory method in R. 
+
+Extreme Value Theory(EVT) is a theory that captures and analyses the occurrence of extreme/unlikely events. The occurrence of events is typically captured using normal distributions. These distributions are great measures of central tendency, which means that they are good at capturing the probability of occurrence of likely events. 
+However, in financial markets, asset returns tend to be fat-tailed (ie dealing with low-frequency but high-severity(LFHS) wins or losses). As these LFHS events are not typical, normal distributions tend to severely undermine their magnitude and frequency. 
+Since these LFHS events can have catastrophic consequences on the stock market when they occur (eg the 1987 stock market crash), EVT was created as a way to adequately capture and predict their occurrence and impact. 
+
+EVT works by setting a threshold in the parent distribution, and fitting a new,EVT distribution over any data points that are deemed more extreme than the threshold set. Similar to how the Central Limit Theorem(CLT) normalizes the distribution of a sample mean, the EVT also establishes that the sampling distribution of these extreme data points tends to converge towards an EVT distribution H, regardless of the parent distribution they originated from.
+There are two main method of capturing extreme data:
+
+### i) Block Maxima method
+
+This method segments the dataset into equal-sized blocks (usually time-based), captures the maximum data points in each block and fits an EVT distribution over them. According to the Frechet-Fisher-Tippett theorem, this EVT distribution is actually a family of distributions referred to as the Generalized Extreme Value(GEV)  distribution that selected based on the shape (ξ) of the distribution function H(ξ). 
+For our project, we focused on the Fretchet distribution function(ξ >0) as it is the most commonly used in the finance industry due to its ability to capture high-value outliers (ie LFHS events).
+
+
+### ii) the Peaks Over Threshold(POT) method
+
+More commonly used in modern financial data analyses, the POT method sets a threshold in the parent distribution and fits the Generalized Pareto Distribution (GPD) over any value deemed more extreme than the threshold. 
+When it comes to figuring out where to place the threshold, there are two main methods used:
+#### i) Manually choosing:
+This method requires setting an arbitrary threshold level to evaluate extreme values on. Although simple, it requires setting a threshold level low enough to capture enough LFHS data points, but high enough to not capture centrally-located data. 
+Not only can this process be time-consuming, it can also affect the validity of the model. 
+#### ii) Hill’s method: 
+This is a graphical method that relies on k+1 order of statistics and Maximum Likelihood Estimation(MLE) to compute a threshold level. 
+The Extreme Value Theory has wide-ranging applications across various industries such as healthcare, sports, natural sciences and finance. 
+
+
+
+## c. Methodology
+### i. Data Cleaning 
+The only prerequisite condition for using EVT is to have independent, identically distributed(iid) random variables. As our stock data was recorded only once each day, our dataset was naturally comprised of iid observations, with no missing values. Therefore, there was no data cleaning process necessary. 
+
+### ii. Statistical Modeling
+We applied both EVT methods (namely Block Maxima and POT) to our Tesla data. Since we were unfamiliar with these methods, we wanted to compare them and see how they would each fare against our dataset. 
+For the Block Maxima method, we divided our dataset into 22 equal-sized blocks (a number obtained through trial and error), and measured the maximum negative logarithmic returns in each block. Generally, logarithmic returns are preferred in the finance industry due to their symmetric, time-additive and time-consistent properties. However, we specifically used negative logarithmic values so that our GED, which is exponential in nature, would return a positive value.
+
+```{r}
+#b1
+n = 22
+start.ind = 1+size-n*floor(size/n)
+X.trim = X[start.ind:size] #truncate list so that is integer multiple of n
+m = (length(X.trim))/n #get number of full blocks
+
+block.max = rep(0,m) #vector of block maxima
+for(i in 0:(m-1)){
+  block.max[i + 1] = X.trim[n*i + 1]
+  for(j in 1:(n-1)){
+    if(X.trim[n*i + j + 1] > block.max[i + 1]){
+      block.max[i + 1] = X.trim[n*i + j + 1]
+    }
+  }
+}
+
+hist(block.max,
+     main = paste("Maximum across ", n, "-block sequences", sep = ""),
+     xlab = "Maximum NL-return in block",
+     col = "gold")
+```
+
+
+```{r}
+#b2
+fit.ged = fgev(block.max)
+ged.mu = fit.ged$estimate[[1]]
+ged.theta = fit.ged$estimate[[2]]
+ged.xi = fit.ged$estimate[[3]]
+
+ged.mu
+ged.theta
+ged.xi
+```
+The model we fit had a positive shape parameter (ξ = 0.146346), consistent with a Fretchet distribution, and was deemed a good fit for our extreme data points by our GED QQ plot.
+```{r}
+#b3
+pts = ppoints(length(block.max))
+plot(qgev(pts, ged.xi, ged.mu, ged.theta),
+     quantile(block.max, p = pts),
+     main = paste("GED QQ Plot, n=", n, sep = ""),
+     xlab = "Theoretical Quantiles",
+     ylab = "Data Quantiles")
+abline(0,1, col = "red")
+```
+
+For the POT method, we relied on both the manual and Hill’s method of threshold creation. 
+Manually, we graphically computed our threshold level by observing where our outliers (ie the extremes data points) lied. 
+
+
+```{r}
+
+#c1
+meplot(X, main = "Sample Mean Excess Plot")
+abline(v = 0.01, col = "red")
+#Choose u = 0.01
+u = 0.01
+
+```
+```{r}
+#c2
+fit.gpd = gpdFit(X, u = 0.01, type = "mle")
+
+gpd.xi = 0.06970571 #from fit.gpd
+gpd.theta = 0.02320922 #from fit.gpd
+```
+
+We repeated the process for our Hill’s method, but generating Hill Estimators for each k value in our order of statistics. 
+```{r}
+#d1
+hillPlot(X)
+
+#d2
+k = 100
+abline(v = k, col = "gold")
+#Choose k = 190
+X = sort(X)
+hill.low = size - k + 1
+hill.vals = X[hill.low:size]
+hill.est = ((sum(log(hill.vals)))/k - log(X[hill.low]))^(-1)
+abline(h = hill.est, col = "gold")
+
+```
+
+With our GPD threshold levels set, we calculated the Value-at-Risk(VaR) and Conditional Value-at-Risk (CVAR) values. VaR and CVaR respectively reveal the position of the 99th percentile (ie extreme losses) and quantify the amount of tail risk these losses carry. 
+Finally, we compared the manually computed VaR and CVaR values obtained to those obtained from the Hill’s method to examine whether the two methods would lead to inherently different values. 
+
+
+# 3. RESULTS AND INTERPRETATION
+Between the two methods (the Block Maxima and the POT), we concluded that the POT was the more informative of the two, as the VaR and CVaR values were more helpful in understanding the frequency and severity of these LFHS losses. 
+```{r}
+#c3: Manually computed VaR and CVaR
+survU = length(X[X >= u])/size #estimate of S(u)
+VaR99.gpd = u + (gpd.theta/gpd.xi)*(((1-0.99)/survU) ^ (-gpd.xi)-1)
+CVaR99.gpd = (VaR99.gpd+gpd.theta-u*gpd.xi) / (1-gpd.xi)
+
+#d3: VaR and CVaR computed through Hill's
+VaR99.hill = (size*0.01/k)^(-1/hill.est)*X[hill.low]
+CVaR99.hill = mean(X[X >= VaR99.hill])
+
+```
+
+
+```{r}
+#summary
+tail = X[X > X[floor(0.97*size)]]
+plot(tail,
+     xaxt = 'n',
+     xlab = "Largest 3% of Negative Log Returns",
+     ylab = "Negative Log Return")
+title(expression("VaR and CVaR under " * phantom("GPD") * " and " * phantom("Hill")), col.main = "black")
+title(expression(phantom("VaR and CVaR under ") * "GPD" * phantom(" and Hill")), col.main = "red")
+title(expression(phantom("VaR and CVaR under GPD and ") * "Hill"), col.main = "blue")
+abline(h = VaR99.gpd, col = "red", lwd = 3)
+abline(h = VaR99.hill, col = "blue", lwd = 3)
+abline(h = CVaR99.gpd, col = "red", lwd = 3)
+abline(h = CVaR99.hill, col = "blue", lwd = 3)
+```
+Within the two POT threshold-setting methods however, we found that the VaR and CVaR values were comparable and, therefore, either method could, theoretically, be insightful. 
+Still, we would recommend using the Hill’s method as it is less-time consuming and less prone to human error.
+
+
+# 3. CONCLUSION
+In conclusion, throughout this project, we learned the nature, importance and setbacks of EVT and risk-management measures in the financial industry. Unfortunately, because we were dealing with logarithmic returns instead of actual stock prices, we could not make insightful remarks or predictions as to the nature of Tesla, inc’s stock performance.  In the future, our project and model could benefit from including the date variable to strengthen our EVT predictions. 
+
+
+
+### Work Cited
+
+# APPENDIX: The Code
+```{r appendix, echo=FALSE, eval=FALSE, ref.label=all_labels()}
+
+# load in packages
+library(evd)
+library(evir)
+library(fExtremes)
+#Read in the data 
+stock = read.csv("TSLA.csv", header = TRUE)
+ac = stock$Adj.Close
+X = log(((ac[1:(length(ac)-1)]))/(ac[2:length(ac)]))
+size = length(X)
+
+summary(stock)
+#Block Maxima method
+#b1
+n = 22
+start.ind = 1+size-n*floor(size/n)
+X.trim = X[start.ind:size] #truncate list so that is integer multiple of n
+m = (length(X.trim))/n #get number of full blocks
+
+block.max = rep(0,m) #vector of block maxima
+for(i in 0:(m-1)){
+  block.max[i + 1] = X.trim[n*i + 1]
+  for(j in 1:(n-1)){
+    if(X.trim[n*i + j + 1] > block.max[i + 1]){
+      block.max[i + 1] = X.trim[n*i + j + 1]
+    }
+  }
+}
+
+hist(block.max,
+     main = paste("Maximum across ", n, "-block sequences", sep = ""),
+     xlab = "Maximum NL-return in block",
+     col = "gold")
+#Block Maxima model and parameters
+#b2
+fit.ged = fgev(block.max)
+ged.mu = fit.ged$estimate[[1]]
+ged.theta = fit.ged$estimate[[2]]
+ged.xi = fit.ged$estimate[[3]]
+
+ged.mu
+ged.theta
+ged.xi
+
+#block maxima model fit- GED QQ plot
+pts = ppoints(length(block.max))
+plot(qgev(pts, ged.xi, ged.mu, ged.theta),
+     quantile(block.max, p = pts),
+     main = paste("GED QQ Plot, n=", n, sep = ""),
+     xlab = "Theoretical Quantiles",
+     ylab = "Data Quantiles")
+abline(0,1, col = "red")
+
+#POT method
+#Mean excess plot
+meplot(X, main = "Sample Mean Excess Plot")
+abline(v = 0.01, col = "red")
+#Choose u = 0.01
+u = 0.01
+#POT model fit and parameters
+fit.gpd = gpdFit(X, u = 0.01, type = "mle")
+
+gpd.xi = 0.06970571 #from fit.gpd
+gpd.theta = 0.02320922 #from fit.gpd
+
+#Manually computed VaR and CVaR
+survU = length(X[X >= u])/size #estimate of S(u)
+VaR99.gpd = u + (gpd.theta/gpd.xi)*(((1-0.99)/survU) ^ (-gpd.xi)-1)
+CVaR99.gpd = (VaR99.gpd+gpd.theta-u*gpd.xi) / (1-gpd.xi)
+#POT-Hill's Method
+
+hillPlot(X)
+
+#k-order of statistics
+k = 100
+abline(v = k, col = "gold")
+#Choose k = 190
+X = sort(X)
+hill.low = size - k + 1
+hill.vals = X[hill.low:size]
+hill.est = ((sum(log(hill.vals)))/k - log(X[hill.low]))^(-1)
+abline(h = hill.est, col = "gold")
+
+#Hill's VaR and CVaR
+VaR99.hill = (size*0.01/k)^(-1/hill.est)*X[hill.low]
+CVaR99.hill = mean(X[X >= VaR99.hill])
+
+#Manually computed vs Hill's VaR and CVaR plot
+tail = X[X > X[floor(0.97*size)]]
+plot(tail,
+     xaxt = 'n',
+     xlab = "Largest 3% of Negative Log Returns",
+     ylab = "Negative Log Return")
+title(expression("VaR and CVaR under " * phantom("GPD") * " and " * phantom("Hill")), col.main = "black")
+title(expression(phantom("VaR and CVaR under ") * "GPD" * phantom(" and Hill")), col.main = "red")
+title(expression(phantom("VaR and CVaR under GPD and ") * "Hill"), col.main = "blue")
+abline(h = VaR99.gpd, col = "red", lwd = 3)
+abline(h = VaR99.hill, col = "blue", lwd = 3)
+abline(h = CVaR99.gpd, col = "red", lwd = 3)
+abline(h = CVaR99.hill, col = "blue", lwd = 3)
+```
